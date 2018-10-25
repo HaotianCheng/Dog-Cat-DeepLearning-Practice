@@ -5,27 +5,34 @@ import matplotlib.pyplot as plt
 import os
 from random import shuffle
 from tqdm import tqdm
+import tflearn
+from tflearn.layers.conv import conv_2d, max_pool_2d
+from tflearn.layers.core import input_data, dropout, fully_connected
+from tflearn.layers.estimator import regression
+
 
 TRAIN_DIR = 'C:\\Galaxy\\Tools\\Scripts\\DOGvsCAT\\all\\train'
 TEST_DIR = 'C:\\Galaxy\\Tools\\Scripts\\DOGvsCAT\\all\\test'
-IMG_SIZE = 128
+IMG_SIZE = 64
 LR = 1e-3
 
 MODEL_NAME = 'dogsvscats-{}-{}.model'.format(LR, '6conv_nasic')
 
 def label_img(img):
     word_label = img.split('.')[-3]
-    if word_label  == 'cat': return [1,0]
-    elif word_label == 'dog': return [0,1]
+    if word_label == 'cat':
+        return [1, 0]
+    elif word_label == 'dog':
+        return [0, 1]
 
 def create_train_data():
     training_data = []
     for img in tqdm(os.listdir(TRAIN_DIR)):
         label = label_img(img)
-        path = os.path.join(TRAIN_DIR,img)
-        img = cv2.imread(path,cv2.IMREAD_GRAYSCALE)
-        img = cv2.resize(img, (IMG_SIZE,IMG_SIZE))
-        training_data.append([np.array(img),np.array(label)])
+        path = os.path.join(TRAIN_DIR, img)
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
+        training_data.append([np.array(img), np.array(label)])
     shuffle(training_data)
     np.save('train_data.npy', training_data)
     return training_data
@@ -35,21 +42,18 @@ def process_test_data():
     for img in tqdm(os.listdir(TEST_DIR)):
         path = os.path.join(TEST_DIR,img)
         img_num = img.split('.')[0]
-        img = cv2.imread(path,cv2.IMREAD_GRAYSCALE)
-        img = cv2.resize(img, (IMG_SIZE,IMG_SIZE))
+        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
         testing_data.append([np.array(img), img_num])
         
     shuffle(testing_data)
     np.save('test_data.npy', testing_data)
     return testing_data
 
+
 train_data = create_train_data()
 test_data = process_test_data()
 
-import tflearn
-from tflearn.layers.conv import conv_2d, max_pool_2d
-from tflearn.layers.core import input_data, dropout, fully_connected
-from tflearn.layers.estimator import regression
 
 tf.reset_default_graph()
 convnet = input_data(shape=[None, IMG_SIZE, IMG_SIZE, 1], name='input')
@@ -91,7 +95,7 @@ test_x = np.array([i[0] for i in test]).reshape(-1,IMG_SIZE,IMG_SIZE,1)
 test_y = [i[1] for i in test]
 
 model.fit({'input': X}, {'targets': Y}, n_epoch=3, validation_set=({'input': test_x}, {'targets': test_y}),
-    snapshot_step=500, show_metric=True, run_id=MODEL_NAME)
+          snapshot_step=500, show_metric=True, run_id=MODEL_NAME)
 
 model.save(MODEL_NAME)
 
@@ -112,8 +116,6 @@ with open('submission_file.csv', 'a') as f:
 fig = plt.figure()
 
 for num, data in enumerate(test_data[:50]):
-    # cat: [1,0]
-    # dog: [0,1]
 
     img_num = data[1]
     img_data = data[0]
@@ -121,7 +123,7 @@ for num, data in enumerate(test_data[:50]):
     y = fig.add_subplot(10, 5, num + 1)
     orig = img_data
     data = img_data.reshape(IMG_SIZE, IMG_SIZE, 1)
-    # model_out = model.predict([data])[0]
+
     model_out = model.predict([data])[0]
 
     if np.argmax(model_out) == 1:
