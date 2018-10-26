@@ -9,6 +9,8 @@ import tflearn
 from tflearn.layers.conv import conv_2d, max_pool_2d
 from tflearn.layers.core import input_data, dropout, fully_connected
 from tflearn.layers.estimator import regression
+from tflearn.data_preprocessing import ImagePreprocessing
+from tflearn.data_augmentation import ImageAugmentation
 
 
 TRAIN_DIR = 'C:\\Galaxy\\Tools\\Scripts\\DOGvsCAT\\all\\train'
@@ -16,7 +18,7 @@ TEST_DIR = 'C:\\Galaxy\\Tools\\Scripts\\DOGvsCAT\\all\\test'
 IMG_SIZE = 64
 LR = 1e-3
 
-MODEL_NAME = 'dogsvscats-{}-{}.model'.format(LR, '6conv_nasic')
+MODEL_NAME = 'DVC-{}-{}.model'.format(LR, '3conv')
 
 def label_img(img):
     word_label = img.split('.')[-3]
@@ -30,6 +32,7 @@ def create_train_data():
     for img in tqdm(os.listdir(TRAIN_DIR)):
         label = label_img(img)
         path = os.path.join(TRAIN_DIR, img)
+        # img = cv2.imread(path, cv2.IMREAD_COLOR)
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
         training_data.append([np.array(img), np.array(label)])
@@ -54,64 +57,54 @@ def process_test_data():
 train_data = create_train_data()
 test_data = process_test_data()
 
+img_prep = ImagePreprocessing()
+img_prep.add_featurewise_zero_center()
+img_prep.add_featurewise_stdnorm()
 
-tf.reset_default_graph()
-convnet = input_data(shape=[None, IMG_SIZE, IMG_SIZE, 1], name='input')
+img_aug = ImageAugmentation()
+img_aug.add_random_flip_leftright()
+img_aug.add_random_rotation(max_angle=25.)
 
-convnet = conv_2d(convnet, 32, 5, activation='relu')
-convnet = max_pool_2d(convnet, 5)
+network = input_data(shape=[None, IMG_SIZE, IMG_SIZE, 1], data_preprocessing=img_prep, data_augmentation=img_aug)
 
-convnet = conv_2d(convnet, 64, 5, activation='relu')
-convnet = max_pool_2d(convnet, 5)
+conv_1 = conv_2d(network, 32, 5, activation='relu', name='conv_1')
+pool_1 = max_pool_2d(conv_1, 2)
 
-convnet = conv_2d(convnet, 128, 5, activation='relu')
-convnet = max_pool_2d(convnet, 5)
+conv_2 = conv_2d(pool_1, 64, 5, activation='relu', name='conv_2')
+pool_2 = max_pool_2d(conv_2, 2)
 
-convnet = conv_2d(convnet, 64, 5, activation='relu')
-convnet = max_pool_2d(convnet, 5)
+conv_3 = conv_2d(pool_2, 128, 5, activation='relu', name='conv_3')
+pool_3 = max_pool_2d(conv_3, 2)
 
-convnet = conv_2d(convnet, 32, 5, activation='relu')
-convnet = max_pool_2d(convnet, 5)
+conv_f = fully_connected(pool_3, 1024, activation='relu')
+drop = dropout(conv_f, 0.8)
 
-convnet = fully_connected(convnet, 1024, activation='relu')
-convnet = dropout(convnet, 0.8)
+conv_F = fully_connected(drop, 2, activation='softmax')
 
-convnet = fully_connected(convnet, 2, activation='softmax')
-convnet = regression(convnet, optimizer='adam', learning_rate=LR, loss='categorical_crossentropy', name='targets')
+optimise = regression(conv_F, optimizer='adam', learning_rate=LR, loss='categorical_crossentropy')
 
-model = tflearn.DNN(convnet, tensorboard_dir='log')
+model = tflearn.DNN(optimise, tensorboard_dir='log')
 
 if os.path.exists('{}.meta'.format(MODEL_NAME)):
     model.load(MODEL_NAME)
     print('model loaded!')
 
-train = train_data[:-500]
-test = train_data[-500:]
+train = train_data[:-1000]
+test = train_data[-1000:]
 
-X = np.array([i[0] for i in train]).reshape(-1,IMG_SIZE,IMG_SIZE,1)
+X = np.array([i[0] for i in train]).reshape(-1, IMG_SIZE, IMG_SIZE, 1)
+X = X.astype('float64')
 Y = [i[1] for i in train]
 
-test_x = np.array([i[0] for i in test]).reshape(-1,IMG_SIZE,IMG_SIZE,1)
+test_x = np.array([i[0] for i in test]).reshape(-1, IMG_SIZE, IMG_SIZE, 1)
+test_x = test_x.astype('float64')
 test_y = [i[1] for i in test]
 
-model.fit({'input': X}, {'targets': Y}, n_epoch=3, validation_set=({'input': test_x}, {'targets': test_y}),
-          snapshot_step=500, show_metric=True, run_id=MODEL_NAME)
+model.fit(X, Y, validation_set=(test_x, test_y), batch_size=500, n_epoch=23, run_id=MODEL_NAME, show_metric=True)
 
 model.save(MODEL_NAME)
 
 test_data = np.load('test_data.npy')
-
-with open('submission_file.csv', 'w') as f:
-    f.write('id,label\n')
-
-with open('submission_file.csv', 'a') as f:
-    for data in tqdm(test_data):
-        img_num = data[1]
-        img_data = data[0]
-        orig = img_data
-        data = img_data.reshape(IMG_SIZE, IMG_SIZE, 1)
-        model_out = model.predict([data])[0]
-        f.write('{},{}\n'.format(img_num, model_out[1]))
 
 fig = plt.figure()
 
@@ -122,9 +115,10 @@ for num, data in enumerate(test_data[:50]):
 
     y = fig.add_subplot(10, 5, num + 1)
     orig = img_data
-    data = img_data.reshape(IMG_SIZE, IMG_SIZE, 1)
+    DATA = img_data.reshape(IMG_SIZE, IMG_SIZE, 1)
+    DATA = DATA.astype('float64')
 
-    model_out = model.predict([data])[0]
+    model_out = model.predict([DATA])[0]
 
     if np.argmax(model_out) == 1:
         str_label = 'Dog'
