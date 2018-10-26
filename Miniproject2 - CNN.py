@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import tensorflow as tf
 import matplotlib.pyplot as plt
 import os
 from random import shuffle
@@ -12,7 +11,6 @@ from tflearn.layers.estimator import regression
 from tflearn.data_preprocessing import ImagePreprocessing
 from tflearn.data_augmentation import ImageAugmentation
 
-
 TRAIN_DIR = 'C:\\Galaxy\\Tools\\Scripts\\DOGvsCAT\\all\\train'
 TEST_DIR = 'C:\\Galaxy\\Tools\\Scripts\\DOGvsCAT\\all\\test'
 IMG_SIZE = 64
@@ -20,12 +18,14 @@ LR = 1e-3
 
 MODEL_NAME = 'DVC-{}-{}.model'.format(LR, '3conv')
 
+
 def label_img(img):
     word_label = img.split('.')[-3]
     if word_label == 'cat':
         return [1, 0]
     elif word_label == 'dog':
         return [0, 1]
+
 
 def create_train_data():
     training_data = []
@@ -39,6 +39,7 @@ def create_train_data():
     shuffle(training_data)
     np.save('train_data.npy', training_data)
     return training_data
+
 
 def process_test_data():
     testing_data = []
