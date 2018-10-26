@@ -87,7 +87,7 @@ init = tf.global_variables_initializer()
 
 train = train_data[:-500]
 test = train_data[-500:]
-batch_size = 100
+batch_size = 500
 n_batch = len(train)//batch_size
 
 with tf.Session() as sess:
@@ -100,9 +100,9 @@ with tf.Session() as sess:
             Y = [i[1] for i in train[batch_size*i:batch_size*(i+1)]]
             sess.run(optimise, feed_dict={x: X, y: Y})
 
-            test_x = np.array([i[0] for i in test])
-            test_y = [i[1] for i in test]
-            test_acc = sess.run(accuracy, feed_dict={x: test_x, y: test_y})
-            LOSS = sess.run(cross_entropy, feed_dict={x: test_x, y: test_y})
-            print('Iter' + str(i) + ',Testing Accuracy ' + str(test_acc)+',Loss '+str(LOSS))
+        test_x = np.array([i[0] for i in test])
+        test_y = [i[1] for i in test]
+        test_acc = sess.run(accuracy, feed_dict={x: test_x, y: test_y})
+        LOSS = sess.run(cross_entropy, feed_dict={x: test_x, y: test_y})
+        print('Iter' + str(i) + ',Testing Accuracy ' + str(test_acc)+',Loss '+str(LOSS))
 
